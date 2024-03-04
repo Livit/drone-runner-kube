@@ -22,6 +22,16 @@ platform:
   arch: amd64
 
 steps:
+  - name: dind
+    image: public.ecr.aws/docker/library/docker:23.0.6-dind-alpine3.18
+    privileged: true
+    detach: true
+    commands:
+      - /bin/sh -c "DOCKER_TLS_CERTDIR='' dockerd-entrypoint.sh --storage-driver=overlay2 --tls=false --experimental"
+    when:
+      ref:
+        - refs/tags/*
+
   - name: build
     image: golang:1.16
     commands:
@@ -32,7 +42,6 @@ steps:
     commands:
     - |+
       VERSION=${DRONE_TAG}
-      ./labsterutils/scripts/k8s/wait.sh dind 2375
 
       # Build Docker Image
       mkdir /root/.docker
@@ -62,16 +71,6 @@ steps:
         from_secret: ecr_secret_key
       ECR_REGISTRY_ALIAS:
         from_secret: ecr_registry_alias
-    when:
-      ref:
-        - refs/tags/*
-
-  - name: dind
-    image: public.ecr.aws/docker/library/docker:23.0.6-dind-alpine3.18
-    privileged: true
-    detach: true
-    commands:
-      - /bin/sh -c "DOCKER_TLS_CERTDIR='' dockerd-entrypoint.sh --storage-driver=overlay2 --tls=false --experimental"
     when:
       ref:
         - refs/tags/*
