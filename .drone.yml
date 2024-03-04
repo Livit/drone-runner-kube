@@ -27,21 +27,55 @@ steps:
     commands:
       - sh scripts/build.sh
 
-  - name: publish
-    image: plugins/ecr
-    pull: if-not-exists
-    settings:
-      access_key:
+  - name: docker-image
+    image: public.ecr.aws/labster/swissknife:0.6.9
+    commands:
+    - |+
+      VERSION=${DRONE_TAG}
+      ./labsterutils/scripts/k8s/wait.sh dind 2375
+
+      # Build Docker Image
+      mkdir /root/.docker
+      echo $${CONFIG_JSON} > /root/.docker/config.json
+      docker buildx create --name mybuilder --use
+      docker buildx inspect --bootstrap
+
+      export IMAGE_TAG="${DRONE_TAG}"
+      aws ecr-public get-login-password --region $${ECR_REGION} | docker login --username AWS --password-stdin public.ecr.aws
+      export IMAGE_REPO=public.ecr.aws/$${ECR_REGISTRY_ALIAS}/$${APP_NAME}
+      echo $${IMAGE_REPO}:$${IMAGE_TAG}
+      docker buildx build \
+        -t $${IMAGE_REPO}:$${IMAGE_TAG}\
+        --platform="linux/amd64" \
+        --output type=registry \
+        --progress=plain \
+        -f ./docker/Dockerfile.linux.amd64 .
+    environment:
+      DOCKER_HOST: tcp://dind:2375
+      APP_NAME:
+        from_secret: app_name
+      ECR_REGION:
+        from_secret: ecr_region
+      AWS_ACCESS_KEY_ID:
         from_secret: ecr_access_key
-      secret_key:
+      AWS_SECRET_ACCESS_KEY:
         from_secret: ecr_secret_key
-      repo: drone-runner-kube
-      registry:
-        from_secret: ecr_registry
-      tags: ${DRONE_TAG}
+      ECR_REGISTRY_ALIAS:
+        from_secret: ecr_registry_alias
     when:
       ref:
         - refs/tags/*
+
+  - name: dind
+    image: public.ecr.aws/docker/library/docker:23.0.6-dind-alpine3.18
+    privileged: true
+    detach: true
+    commands:
+      - /bin/sh -c "DOCKER_TLS_CERTDIR='' dockerd-entrypoint.sh --storage-driver=overlay2 --tls=false --experimental"
+    when:
+      ref:
+        - refs/tags/*
+
 
 depends_on:
   - testing
