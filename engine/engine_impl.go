@@ -5,6 +5,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -269,6 +270,8 @@ func (k *Kubernetes) fetchLogs(ctx context.Context, spec *Spec, step *Step, outp
 		Container: step.ID,
 	}
 
+	log := logger.FromContext(ctx)
+
 	req := k.client.CoreV1().RESTClient().Get().
 		Namespace(spec.PodSpec.Namespace).
 		Name(spec.PodSpec.Name).
@@ -288,6 +291,13 @@ func (k *Kubernetes) fetchLogs(ctx context.Context, spec *Spec, step *Step, outp
 		return err
 	}
 	defer readCloser.Close()
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, readCloser)
+	if err != nil {
+		log.Error("error in copy information from podLogs to buf")
+	}
+	log.Info(buf.String())
 
 	return cancellableCopy(ctx, output, readCloser)
 }
