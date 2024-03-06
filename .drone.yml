@@ -28,9 +28,6 @@ steps:
     detach: true
     commands:
       - /bin/sh -c "DOCKER_TLS_CERTDIR='' dockerd-entrypoint.sh --storage-driver=overlay2 --tls=false --experimental"
-    when:
-      ref:
-        - refs/tags/*
 
   - name: build
     image: golang:1.16
@@ -49,7 +46,7 @@ steps:
       docker buildx create --name mybuilder --use
       docker buildx inspect --bootstrap
 
-      export IMAGE_TAG="${DRONE_TAG}"
+      export IMAGE_TAG="${DRONE_TAG}-amd64"
       aws ecr-public get-login-password --region $${ECR_REGION} | docker login --username AWS --password-stdin public.ecr.aws
       export IMAGE_REPO=public.ecr.aws/$${ECR_REGISTRY_ALIAS}/$${APP_NAME}
       echo $${IMAGE_REPO}:$${IMAGE_TAG}
@@ -71,13 +68,132 @@ steps:
         from_secret: ecr_secret_key
       ECR_REGISTRY_ALIAS:
         from_secret: ecr_registry_alias
+
+depends_on:
+  - testing
+  
+trigger:
+  ref:
+    - refs/tags/**
+
+---
+kind: pipeline
+type: docker
+name: linux-arm64
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+  - name: dind
+    image: public.ecr.aws/docker/library/docker:23.0.6-dind-alpine3.18
+    privileged: true
+    detach: true
+    commands:
+      - /bin/sh -c "DOCKER_TLS_CERTDIR='' dockerd-entrypoint.sh --storage-driver=overlay2 --tls=false --experimental"
+
+  - name: build
+    image: golang:1.16
+    commands:
+      - sh scripts/build.sh
+
+  - name: docker-image
+    image: public.ecr.aws/labster/swissknife:0.6.9
+    commands:
+    - |+
+      VERSION=${DRONE_TAG}
+
+      # Build Docker Image
+      mkdir /root/.docker
+      echo $${CONFIG_JSON} > /root/.docker/config.json
+      docker buildx create --name mybuilder --use
+      docker buildx inspect --bootstrap
+
+      export IMAGE_TAG="${DRONE_TAG}-arm64"
+      aws ecr-public get-login-password --region $${ECR_REGION} | docker login --username AWS --password-stdin public.ecr.aws
+      export IMAGE_REPO=public.ecr.aws/$${ECR_REGISTRY_ALIAS}/$${APP_NAME}
+      echo $${IMAGE_REPO}:$${IMAGE_TAG}
+      docker buildx build \
+        -t $${IMAGE_REPO}:$${IMAGE_TAG}\
+        --platform="linux/arm64" \
+        --output type=registry \
+        --progress=plain \
+        -f ./docker/Dockerfile.linux.arm64 .
+    environment:
+      DOCKER_HOST: tcp://dind:2375
+      APP_NAME:
+        from_secret: app_name
+      ECR_REGION:
+        from_secret: ecr_region
+      AWS_ACCESS_KEY_ID:
+        from_secret: ecr_access_key
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: ecr_secret_key
+      ECR_REGISTRY_ALIAS:
+        from_secret: ecr_registry_alias
+
+depends_on:
+  - testing
+  
+trigger:
+  ref:
+    - refs/tags/**
+
+---
+kind: pipeline
+type: docker
+name: manifest
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: dind
+    image: public.ecr.aws/docker/library/docker:23.0.6-dind-alpine3.18
+    privileged: true
+    detach: true
+    commands:
+      - /bin/sh -c "DOCKER_TLS_CERTDIR='' dockerd-entrypoint.sh --storage-driver=overlay2 --tls=false --experimental"
     when:
       ref:
         - refs/tags/*
 
+  - name: docker-image
+    image: public.ecr.aws/labster/swissknife:0.6.9
+    commands:
+    - |+
+      export DOCKER_CLI_EXPERIMENTAL=enabled
+      export IMAGE_TAG=$(DRONE_TAG)
+      export IMAGE_REPO=public.ecr.aws/$${ECR_REGISTRY_ALIAS}/$${APP_NAME}
+      aws ecr-public get-login-password --region $${ECR_REGION} | docker login --username AWS --password-stdin public.ecr.aws
+      docker manifest create $${IMAGE_REPO}:$${IMAGE_TAG} \\
+      --amend $${IMAGE_REPO}:$${IMAGE_TAG}-amd64 \\
+      --amend $${IMAGE_REPO}:$${IMAGE_TAG}-arm64
+      docker manifest annotate --arch arm64 $${IMAGE_REPO}:$${IMAGE_TAG} $${IMAGE_REPO}:$${IMAGE_TAG}-arm64
+      docker manifest annotate --arch amd64 $${IMAGE_REPO}:$${IMAGE_TAG} $${IMAGE_REPO}:$${IMAGE_TAG}-amd64
+      docker manifest inspect $${IMAGE_REPO}:$${IMAGE_TAG}
+      docker manifest push $${IMAGE_REPO}:$${IMAGE_TAG}
+    environment:
+      DOCKER_HOST: tcp://dind:2375
+      APP_NAME:
+        from_secret: app_name
+      ECR_REGION:
+        from_secret: ecr_region
+      AWS_ACCESS_KEY_ID:
+        from_secret: ecr_access_key
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: ecr_secret_key
+      ECR_REGISTRY_ALIAS:
+        from_secret: ecr_registry_alias
+    when:
+      ref:
+        - refs/tags/*
 
 depends_on:
-  - testing
+  - linux-amd64
+  - linux-arm64
   
 trigger:
   ref:
