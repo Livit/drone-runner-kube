@@ -165,7 +165,7 @@ steps:
     commands:
     - |+
       export DOCKER_CLI_EXPERIMENTAL=enabled
-      export IMAGE_TAG=$(DRONE_TAG)
+      export IMAGE_TAG=${DRONE_TAG}
       export IMAGE_REPO=public.ecr.aws/$${ECR_REGISTRY_ALIAS}/$${APP_NAME}
       aws ecr-public get-login-password --region $${ECR_REGION} | docker login --username AWS --password-stdin public.ecr.aws
       docker manifest create $${IMAGE_REPO}:$${IMAGE_TAG} \\
