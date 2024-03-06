@@ -347,10 +347,11 @@ func Copy(dst io.Writer, src io.ReadCloser) (int, error) {
 // If context.Cancel is called, it will return immediately with context cancelled error.
 func cancellableCopyNew(ctx context.Context, dst io.Writer, src io.ReadCloser) (int, error) {
 	var bytesCopied int
+	var err error
 	ch := make(chan error, 1)
 	go func() {
 		defer close(ch)
-		bytesCopied, err := Copy(dst, src)
+		bytesCopied, err = Copy(dst, src)
 		ch <- err
 	}()
 
