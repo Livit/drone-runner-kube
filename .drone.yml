@@ -38,8 +38,6 @@ steps:
     image: public.ecr.aws/labster/swissknife:0.6.9
     commands:
     - |+
-      VERSION=${DRONE_TAG}
-
       # Build Docker Image
       mkdir /root/.docker
       echo $${CONFIG_JSON} > /root/.docker/config.json
@@ -102,8 +100,6 @@ steps:
     image: public.ecr.aws/labster/swissknife:0.6.9
     commands:
     - |+
-      VERSION=${DRONE_TAG}
-
       # Build Docker Image
       mkdir /root/.docker
       echo $${CONFIG_JSON} > /root/.docker/config.json
@@ -168,9 +164,7 @@ steps:
       export IMAGE_TAG=${DRONE_TAG}
       export IMAGE_REPO=public.ecr.aws/$${ECR_REGISTRY_ALIAS}/$${APP_NAME}
       aws ecr-public get-login-password --region $${ECR_REGION} | docker login --username AWS --password-stdin public.ecr.aws
-      docker manifest create $${IMAGE_REPO}:$${IMAGE_TAG} \\
-      --amend $${IMAGE_REPO}:$${IMAGE_TAG}-amd64 \\
-      --amend $${IMAGE_REPO}:$${IMAGE_TAG}-arm64
+      docker manifest create $${IMAGE_REPO}:$${IMAGE_TAG} --amend $${IMAGE_REPO}:$${IMAGE_TAG}-amd64 --amend $${IMAGE_REPO}:$${IMAGE_TAG}-arm64
       docker manifest annotate --arch arm64 $${IMAGE_REPO}:$${IMAGE_TAG} $${IMAGE_REPO}:$${IMAGE_TAG}-arm64
       docker manifest annotate --arch amd64 $${IMAGE_REPO}:$${IMAGE_TAG} $${IMAGE_REPO}:$${IMAGE_TAG}-amd64
       docker manifest inspect $${IMAGE_REPO}:$${IMAGE_TAG}
