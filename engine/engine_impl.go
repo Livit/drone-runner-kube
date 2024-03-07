@@ -226,6 +226,8 @@ func (k *Kubernetes) Run(ctx context.Context, specv runtime.Spec, stepv runtime.
 		return
 	}
 
+	watcher.WaitContainerReStart(containerId)
+
 	var retries int
 	for retries < 5 {
 		bytesCopied, err := k.fetchLogs(ctx, spec, step, output)

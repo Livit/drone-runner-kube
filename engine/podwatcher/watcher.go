@@ -6,6 +6,7 @@ package podwatcher
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -266,6 +267,7 @@ func (pw *PodWatcher) updateContainers(containers []containerInfo) {
 			c.stepState = s
 			c.exitCode = 0
 			c.reason = cs.reason
+			c.restartCount = int(cs.restartCount)
 
 			logrus.
 				WithField("pod", pw.podName).
@@ -416,6 +418,32 @@ func (pw *PodWatcher) waitForEvent(containerId string, stepState stepState) (err
 // WaitContainerStart waits until a container in the pod starts.
 func (pw *PodWatcher) WaitContainerStart(containerId string) error {
 	return pw.waitForEvent(containerId, stepStateRunning)
+}
+
+// WaitContainerReStart waits until a container in the pod restarts.
+func (pw *PodWatcher) WaitContainerReStart(containerId string) bool {
+	logrus.
+		WithField("pod", pw.podName).
+		WithField("container", containerId).
+		Debug("PodWatcher: Waiting to be restated")
+	retries := 0
+	for retries < 60 {
+		if pw.containerMap[containerId].stepState != stepStateRunning {
+			return false
+		}
+		if pw.containerMap[containerId].restartCount > 0 {
+			return true
+		}
+		retries++
+		logrus.
+			WithField("pod", pw.podName).
+			WithField("container", containerId).
+			WithField("restart count", strconv.Itoa(pw.containerMap[containerId].restartCount)).
+			Debug("PodWatcher: Waiting to be restated")
+
+		<-time.After(time.Second * 5)
+	}
+	return false
 }
 
 // WaitContainerTerminated waits until a container in the pod is terminated.
