@@ -260,6 +260,8 @@ func (pw *PodWatcher) updateContainers(containers []containerInfo) {
 				s = stepStateRunning
 			}
 
+			c.restartCount = int(cs.restartCount)
+
 			if s == c.stepState && c.reason == cs.reason {
 				continue // step state unchanged
 			}
@@ -267,7 +269,6 @@ func (pw *PodWatcher) updateContainers(containers []containerInfo) {
 			c.stepState = s
 			c.exitCode = 0
 			c.reason = cs.reason
-			c.restartCount = int(cs.restartCount)
 
 			logrus.
 				WithField("pod", pw.podName).
