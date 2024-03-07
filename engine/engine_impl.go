@@ -191,7 +191,7 @@ func (k *Kubernetes) Run(ctx context.Context, specv runtime.Spec, stepv runtime.
 			PodNamespace: podNamespace,
 			PodName:      podId,
 			KubeClient:   k.client,
-			Period:       20 * time.Second,
+			Period:       5 * time.Second,
 		})
 
 		log.Trace("PodWatcher started")
