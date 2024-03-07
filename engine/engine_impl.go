@@ -230,21 +230,7 @@ func (k *Kubernetes) Run(ctx context.Context, specv runtime.Spec, stepv runtime.
 
 	watcher.WaitContainerReStart(containerId)
 
-	var retries int
-	for retries < 5 {
-		bytesCopied, err := k.fetchLogs(ctx, spec, step, output)
-		if err == nil && bytesCopied != 0 {
-			break
-		}
-
-		retries++
-
-		if err != nil && retries >= 5 {
-			break
-		}
-
-		<-time.After(time.Second * 5)
-	}
+	k.fetchLogs(ctx, spec, step, output)
 
 	type containerResult struct {
 		code int
@@ -276,7 +262,7 @@ func (k *Kubernetes) Run(ctx context.Context, specv runtime.Spec, stepv runtime.
 	return
 }
 
-func (k *Kubernetes) fetchLogs(ctx context.Context, spec *Spec, step *Step, output io.Writer) (int, error) {
+func (k *Kubernetes) fetchLogs(ctx context.Context, spec *Spec, step *Step, output io.Writer) error {
 	// HACK: this timeout delays fetching the logs to ensure there is enough time to stream the logs.
 	// it does not delay the build speed.
 	time.Sleep(k.containerTimeToWaitForLogs)
@@ -301,11 +287,11 @@ func (k *Kubernetes) fetchLogs(ctx context.Context, spec *Spec, step *Step, outp
 			WithField("container", step.ID).
 			WithField("step", step.Name).
 			Error("failed to stream logs")
-		return 0, err
+		return err
 	}
 	defer readCloser.Close()
 
-	return cancellableCopyNew(ctx, output, readCloser)
+	return cancellableCopy(ctx, output, readCloser)
 }
 
 func (k *Kubernetes) startContainer(ctx context.Context, spec *Spec, step *Step) <-chan error {
