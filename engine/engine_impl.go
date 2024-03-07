@@ -14,6 +14,7 @@ import (
 
 	"github.com/drone-runners/drone-runner-kube/engine/launcher"
 	"github.com/drone-runners/drone-runner-kube/engine/podwatcher"
+	"github.com/drone-runners/drone-runner-kube/internal/docker/image"
 
 	"github.com/drone/runner-go/logger"
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -202,6 +203,8 @@ func (k *Kubernetes) Run(ctx context.Context, specv runtime.Spec, stepv runtime.
 		return
 	}
 
+	isPlaceholder := image.Match(watcher.GetContainerImage(step.ID), step.Placeholder)
+
 	log.Debug("Engine: Starting step")
 
 	err = <-k.startContainer(ctx, spec, step)
@@ -226,7 +229,9 @@ func (k *Kubernetes) Run(ctx context.Context, specv runtime.Spec, stepv runtime.
 		return
 	}
 
-	watcher.WaitContainerReStart(containerId)
+	if isPlaceholder {
+		watcher.WaitContainerReStart(containerId)
+	}
 
 	var retries int
 	for retries < 5 {
