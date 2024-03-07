@@ -5,7 +5,6 @@
 package engine
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"io"
@@ -312,44 +311,4 @@ func (k *Kubernetes) startContainer(ctx context.Context, spec *Spec, step *Step)
 	}
 
 	return l.Launch(containerName, containerImage, statusEnvs)
-}
-
-func Copy(dst io.Writer, src io.ReadCloser) (int, error) {
-	var bytesCopied int
-	r := bufio.NewReader(src)
-	for {
-		bytes, readError := r.ReadBytes('\n')
-		i, writeError := dst.Write(bytes)
-		bytesCopied += i
-		if writeError != nil {
-			return bytesCopied, writeError
-		}
-		if readError != nil {
-			if readError != io.EOF {
-				return bytesCopied, readError
-			}
-			return bytesCopied, nil
-		}
-	}
-}
-
-// cancellableCopy method copies from source to destination honoring the context.
-// If context.Cancel is called, it will return immediately with context cancelled error.
-func cancellableCopyNew(ctx context.Context, dst io.Writer, src io.ReadCloser) (int, error) {
-	var bytesCopied int
-	var err error
-	ch := make(chan error, 1)
-	go func() {
-		defer close(ch)
-		bytesCopied, err = Copy(dst, src)
-		ch <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		src.Close()
-		return bytesCopied, ctx.Err()
-	case err := <-ch:
-		return bytesCopied, err
-	}
 }
